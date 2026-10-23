@@ -216,6 +216,9 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
     });
   }
 
+
+
+
   IconData getCategoryIcon(String category) {
     switch (category) {
       case 'Ăn uống':
@@ -285,6 +288,7 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
   }
 
 
+
   Future<void> showAddTransactionDialog() async {
     final result = await Navigator.push<bool>(
       context,
@@ -293,15 +297,20 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
       ),
     );
 
-
     if (result == true && mounted) {
+      await loadTransactions();
+
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Đã thêm giao dịch thành công!'),
+          backgroundColor: Colors.green,
         ),
       );
     }
   }
+
 
   Future<void> showEditTransaction(
       Map<String, dynamic> transaction,
@@ -337,7 +346,7 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
       appBar: AppBar(
         backgroundColor: backgroundColor,
         title: const Text(
-          'Expense Manager',
+          'Quản lí thu chi',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: darkColor,
@@ -368,6 +377,7 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
           buildProfileTab(),
         ],
       ),
+
       floatingActionButton: selectedTab == 0 || selectedTab == 2
           ? FloatingActionButton(
         onPressed: showAddTransactionDialog,
@@ -405,18 +415,184 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
     );
   }
 
+
+  Widget buildMonthlyChart() {
+    final now = DateTime.now();
+
+    final monthlyTransactions = transactions.where((item) {
+      final date = DateTime.tryParse(item['date'].toString());
+
+      return date != null &&
+          date.year == now.year &&
+          date.month == now.month;
+    }).toList();
+
+    final income = monthlyTransactions.fold<int>(
+      0,
+          (sum, item) {
+        final amount = item['amount'] as int;
+        return sum + (amount > 0 ? amount : 0);
+      },
+    );
+
+    final expense = monthlyTransactions.fold<int>(
+      0,
+          (sum, item) {
+        final amount = item['amount'] as int;
+        return sum + (amount < 0 ? -amount : 0);
+      },
+    );
+
+    final maxAmount = income > expense
+        ? income.toDouble()
+        : expense.toDouble();
+
+    final incomeHeight =
+    maxAmount == 0 ? 0.0 : 110 * income / maxAmount;
+
+    final expenseHeight =
+    maxAmount == 0 ? 0.0 : 110 * expense / maxAmount;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Thống kê thu - chi',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: darkColor,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Tháng ${now.month}/${now.year}',
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildChartBar(
+                label: 'Thu nhập',
+                amount: income,
+                height: incomeHeight,
+                color: const Color(0xFF36B878),
+              ),
+              _buildChartBar(
+                label: 'Chi tiêu',
+                amount: expense,
+                height: expenseHeight,
+                color: const Color(0xFFE76565),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Icon(
+                Icons.circle,
+                color: Color(0xFF36B878),
+                size: 10,
+              ),
+              const SizedBox(width: 6),
+              const Text('Thu nhập'),
+              const Spacer(),
+              Text(
+                formatMoney(income),
+                style: const TextStyle(
+                  color: Color(0xFF269B61),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(
+                Icons.circle,
+                color: Color(0xFFE76565),
+                size: 10,
+              ),
+              const SizedBox(width: 6),
+              const Text('Chi tiêu'),
+              const Spacer(),
+              Text(
+                formatMoney(expense),
+                style: const TextStyle(
+                  color: Color(0xFFE05252),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChartBar({
+    required String label,
+    required int amount,
+    required double height,
+    required Color color,
+  }) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Text(
+          formatMoney(amount),
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: 54,
+          height: height < 4 ? 4 : height,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget buildHomeTab() {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+
+        // Thẻ tổng số dư
         Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF4B55D4), Color(0xFF6976F5)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF4B55D4),
+                Color(0xFF6974F5),
+              ],
             ),
             borderRadius: BorderRadius.circular(20),
           ),
@@ -425,54 +601,116 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
             children: [
               const Text(
                 'Tổng số dư',
-                style: TextStyle(color: Colors.white70, fontSize: 15),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                formatMoney(balance),
-                style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
                 ),
-              ),
-              const SizedBox(height: 22),
-              Text(
-                '↓  Thu nhập: ${formatMoney(totalIncome)}',
-                style: const TextStyle(color: Colors.white, fontSize: 13),
               ),
               const SizedBox(height: 10),
               Text(
-                '↑  Chi tiêu: ${formatMoney(totalExpense)}',
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                formatMoney(balance),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.trending_up,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Thu nhập',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          formatMoney(totalIncome),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.trending_down,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Chi tiêu',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          formatMoney(totalExpense),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 28),
+
+
+        // Giao dịch gần đây
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
               'Giao dịch gần đây',
               style: TextStyle(
-                fontSize: 19,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: darkColor,
               ),
             ),
             TextButton(
-              onPressed: () => setState(() => selectedTab = 2),
-              child: const Text(
-                'Xem tất cả',
-                style: TextStyle(color: primaryColor),
-              ),
+              onPressed: () {
+                setState(() {
+                  selectedTab = 2;
+                });
+              },
+              child: const Text('Xem tất cả'),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        ...transactions.take(4).map(buildTransactionCard),
-        const SizedBox(height: 70),
+
+        const SizedBox(height: 10),
+
+        if (transactions.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 30),
+            child: Center(
+              child: Text(
+                'Chưa có giao dịch nào.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          )
+        else
+          ...transactions.take(5).map(buildTransactionCard),
+        const SizedBox(height: 80),
       ],
     );
   }
@@ -537,109 +775,287 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
         ),
     );
   }
+
   Widget buildStatisticsTab() {
-    final total = totalIncome + totalExpense;
-    final incomePercent = total == 0 ? 0.0 : totalIncome / total;
-    final expensePercent = total == 0 ? 0.0 : totalExpense / total;
+    final Map<String, int> categoryExpenses = {};
+
+    for (final item in transactions) {
+      final amount = item['amount'] as int;
+
+      if (amount < 0) {
+        final category = item['category']?.toString() ?? 'Khác';
+
+        categoryExpenses[category] =
+            (categoryExpenses[category] ?? 0) + amount.abs();
+      }
+    }
+
+    final totalCategoryExpense = categoryExpenses.values.fold<int>(
+      0,
+          (sum, amount) => sum + amount,
+    );
+
+    final chartColors = [
+      const Color(0xFFFF6384),
+      const Color(0xFF36A2EB),
+      const Color(0xFFFFCE56),
+      const Color(0xFF4BC0C0),
+      const Color(0xFF9966FF),
+      const Color(0xFFFF9F40),
+    ];
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         const Text(
-          'Thống kê thu chi',
+          'Thống kê',
           style: TextStyle(
-            fontSize: 22,
+            fontSize: 24,
             fontWeight: FontWeight.bold,
             color: darkColor,
           ),
         ),
+        const SizedBox(height: 6),
+        const Text(
+          'Tổng quan tình hình tài chính của bạn',
+          style: TextStyle(
+            color: Colors.grey,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 22),
+
+        // Bộ chọn thời gian
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEDEEFF),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: const Text(
+                    'Tổng quan',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+
+        // Biểu đồ tròn
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Cơ cấu chi tiêu',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: darkColor,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              if (totalCategoryExpense == 0)
+                const SizedBox(
+                  height: 220,
+                  child: Center(
+                    child: Text(
+                      'Chưa có dữ liệu chi tiêu',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                )
+              else
+                SizedBox(
+                  height: 230,
+                  child: Center(
+                    child: ExpenseDonutChart(
+                      data: categoryExpenses,
+                      total: totalCategoryExpense,
+                      colors: chartColors,
+                      formatMoney: formatMoney,
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 20),
+
+              // Chú thích danh mục
+              ...categoryExpenses.entries.toList().asMap().entries.map(
+                    (entry) {
+                  final index = entry.key;
+                  final category = entry.value.key;
+                  final amount = entry.value.value;
+                  final color = chartColors[index % chartColors.length];
+                  final percent =
+                  totalCategoryExpense == 0
+                      ? 0.0
+                      : amount / totalCategoryExpense * 100;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            category,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                        Text(
+                          '${percent.toStringAsFixed(1)}%',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          formatMoney(amount),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+
         const SizedBox(height: 20),
-        buildSummaryCard(
-          'Tổng thu nhập',
-          formatMoney(totalIncome),
-          Icons.trending_up,
-          const Color(0xFF2EAA66),
-        ),
-        buildSummaryCard(
-          'Tổng chi tiêu',
-          formatMoney(totalExpense),
-          Icons.trending_down,
-          const Color(0xFFE05252),
-        ),
+
+
+
+        // Số dư
         buildSummaryCard(
           'Số dư hiện tại',
           formatMoney(balance),
           Icons.account_balance_wallet,
           primaryColor,
         ),
-        const SizedBox(height: 24),
-        const Text(
-          'Tỷ lệ thu chi',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-        ),
-        const SizedBox(height: 12),
-        LinearProgressIndicator(
-          value: incomePercent,
-          minHeight: 12,
-          backgroundColor: const Color(0xFFFFD9D9),
-          color: const Color(0xFF2EAA66),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        const SizedBox(height: 10),
-        Text('Thu nhập: ${(incomePercent * 100).toStringAsFixed(1)}%'),
-        const SizedBox(height: 8),
-        Text('Chi tiêu: ${(expensePercent * 100).toStringAsFixed(1)}%'),
-      ],
-    );
-  }
 
-  Widget buildSummaryCard(
-      String title,
-      String value,
-      IconData icon,
-      Color color,
-      ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 32, color: color),
-          const SizedBox(width: 16),
-          Expanded(child: Text(title)),
-          Text(
-            value,
-            style: TextStyle(fontWeight: FontWeight.bold, color: color),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildTransactionsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const Text(
-          'Tất cả giao dịch',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: darkColor,
-          ),
-        ),
         const SizedBox(height: 20),
-        if (transactions.isEmpty)
-          const Center(child: Text('Chưa có giao dịch nào.')),
-        ...transactions.map(buildTransactionCard),
-        const SizedBox(height: 70),
+        // Tổng thu nhập
+        buildSummaryCard(
+          'Tổng thu nhập',
+          formatMoney(totalIncome),
+          Icons.trending_up,
+          const Color(0xFF2EAA66),
+        ),
+
+        // Tổng chi tiêu
+        buildSummaryCard(
+          'Tổng chi tiêu',
+          formatMoney(totalExpense),
+          Icons.trending_down,
+          const Color(0xFFE05252),
+        ),
       ],
     );
   }
+
+
+Widget buildSummaryCard(
+String title,
+String value,
+IconData icon,
+Color color,
+) {
+return Container(
+margin: const EdgeInsets.only(bottom: 12),
+padding: const EdgeInsets.all(18),
+decoration: BoxDecoration(
+color: Colors.white,
+borderRadius: BorderRadius.circular(16),
+),
+child: Row(
+children: [
+Container(
+width: 48,
+height: 48,
+decoration: BoxDecoration(
+color: color.withValues(alpha: 0.12),
+borderRadius: BorderRadius.circular(12),
+),
+child: Icon(icon, color: color, size: 25),
+),
+const SizedBox(width: 14),
+Expanded(
+child: Text(
+title,
+style: const TextStyle(
+fontSize: 14,
+color: Colors.grey,
+),
+),
+),
+Text(
+value,
+style: TextStyle(
+fontSize: 15,
+fontWeight: FontWeight.bold,
+color: color,
+),
+),
+],
+),
+);
+}
+
+Widget buildTransactionsTab() {
+return ListView(
+padding: const EdgeInsets.all(20),
+children: [
+const Text(
+'Tất cả giao dịch',
+style: TextStyle(
+fontSize: 22,
+fontWeight: FontWeight.bold,
+color: darkColor,
+),
+),
+const SizedBox(height: 20),
+if (transactions.isEmpty)
+const Center(child: Text('Chưa có giao dịch nào.')),
+...transactions.map(buildTransactionCard),
+const SizedBox(height: 70),
+],
+);
+}
 
   Widget buildProfileTab() {
     return ListView(
@@ -648,7 +1064,11 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
         const CircleAvatar(
           radius: 42,
           backgroundColor: Color(0xFFE6E8FF),
-          child: Icon(Icons.person, size: 48, color: primaryColor),
+          child: Icon(
+            Icons.person,
+            size: 48,
+            color: primaryColor,
+          ),
         ),
         const SizedBox(height: 16),
         const Center(
@@ -668,7 +1088,9 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Chức năng đang được phát triển.')),
+              const SnackBar(
+                content: Text('Chức năng đang được phát triển.'),
+              ),
             );
           },
         ),
@@ -678,7 +1100,9 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
           trailing: const Icon(Icons.chevron_right),
           onTap: () {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Chức năng đang được phát triển.')),
+              const SnackBar(
+                content: Text('Chức năng đang được phát triển.'),
+              ),
             );
           },
         ),
@@ -691,11 +1115,122 @@ class _ExpenseHomeScreenState extends State<ExpenseHomeScreen> {
               context: context,
               applicationName: 'Expense Manager',
               applicationVersion: '1.0.0',
-              applicationLegalese: 'Ứng dụng quản lý chi tiêu cá nhân.',
+              applicationLegalese:
+              'Ứng dụng quản lý chi tiêu cá nhân.',
             );
           },
         ),
       ],
     );
+  }
+}
+class ExpenseDonutChart extends StatelessWidget {
+  final Map<String, int> data;
+  final int total;
+  final List<Color> colors;
+  final String Function(int) formatMoney;
+
+  const ExpenseDonutChart({
+    super.key,
+    required this.data,
+    required this.total,
+    required this.colors,
+    required this.formatMoney,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = data.entries.toList();
+
+    return SizedBox(
+      width: 220,
+      height: 220,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(
+            size: const Size(220, 220),
+            painter: DonutChartPainter(
+              values: entries.map((e) => e.value.toDouble()).toList(),
+              colors: colors,
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Tổng chi tiêu',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                formatMoney(total),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: darkColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DonutChartPainter extends CustomPainter {
+  final List<double> values;
+  final List<Color> colors;
+
+  DonutChartPainter({
+    required this.values,
+    required this.colors,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = values.fold<double>(0, (sum, value) => sum + value);
+
+    if (total <= 0) return;
+
+    const strokeWidth = 24.0;
+    final rect = Rect.fromCircle(
+      center: Offset(size.width / 2, size.height / 2),
+      radius: size.width / 2 - strokeWidth / 2,
+    );
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    double startAngle = -3.141592653589793 / 2;
+
+    for (int i = 0; i < values.length; i++) {
+      final sweepAngle = values[i] / total * 2 * 3.141592653589793;
+
+      paint.color = colors[i % colors.length];
+
+      canvas.drawArc(
+        rect,
+        startAngle,
+        sweepAngle,
+        false,
+        paint,
+      );
+
+      startAngle += sweepAngle;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant DonutChartPainter oldDelegate) {
+    return oldDelegate.values != values ||
+        oldDelegate.colors != colors;
   }
 }
